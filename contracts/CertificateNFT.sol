@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./CourseCatalog.sol";
 
@@ -10,6 +11,7 @@ contract CertificateNFT is ERC721URIStorage, Ownable {
     // State variables
     uint256 private _nextTokenId;
     CourseCatalog public courseCatalog;
+    IERC20 public eduToken;  // ERC20 token for educational credits
     
     struct Certificate {
         bytes32 courseId;
@@ -17,12 +19,22 @@ contract CertificateNFT is ERC721URIStorage, Ownable {
         address recipient;
         uint8 grade;          // Grade stored as a number (e.g., 85 for B)
         bool isVerified;
+        uint256 creditsEarned;  // Credits earned for this course
+    }
+    
+    // Educational history tracking
+    struct EducationChain {
+        uint256[] certificateIds;  // Array of certificate NFT IDs
+        uint256 totalCredits;      // Total credits earned
+        string[] specializations;   // Completed specializations/programs
     }
     
     // Mappings
     mapping(uint256 => Certificate) public certificates;
     mapping(address => mapping(bytes32 => bool)) public completedCourses;
     mapping(address => uint256[]) public studentCertificates;
+    mapping(address => EducationChain) public educationHistory;
+    mapping(address => bool) public authorizedUniversities;
     
     // Events
     event CertificateMinted(
@@ -30,24 +42,43 @@ contract CertificateNFT is ERC721URIStorage, Ownable {
         address indexed recipient,
         bytes32 indexed courseId,
         uint256 completionDate,
-        uint8 grade
+        uint8 grade,
+        uint256 creditsEarned
     );
 
-    event CertificateVerified(
-        uint256 indexed tokenId,
-        address indexed verifier
+    event CreditsAwarded(
+        address indexed student,
+        uint256 amount,
+        bytes32 indexed courseId
     );
 
-    constructor(address _courseCatalog) ERC721("EduLink Certificate", "EDU") Ownable(msg.sender) {
+    event UniversityAuthorized(address indexed university, bool status);
+    
+    constructor(
+        address _courseCatalog,
+        address _eduToken
+    ) ERC721("EduLink Certificate", "EDU") Ownable(msg.sender) {
         courseCatalog = CourseCatalog(_courseCatalog);
+        eduToken = IERC20(_eduToken);
+    }
+
+    modifier onlyAuthorizedUniversity() {
+        require(authorizedUniversities[msg.sender], "Not authorized university");
+        _;
+    }
+
+    function authorizeUniversity(address university, bool status) external onlyOwner {
+        authorizedUniversities[university] = status;
+        emit UniversityAuthorized(university, status);
     }
 
     function safeMint(
         address to,
         bytes32 courseId,
         uint8 grade,
+        uint256 credits,
         string memory uri
-    ) public onlyOwner {
+    ) public onlyAuthorizedUniversity {
         // Verify course exists in catalog
         (,,,,,bool isActive) = courseCatalog.getCourse(courseId);
         require(isActive, "Course not found in catalog");
@@ -59,11 +90,20 @@ contract CertificateNFT is ERC721URIStorage, Ownable {
             completionDate: block.timestamp,
             recipient: to,
             grade: grade,
-            isVerified: false
+            isVerified: true,
+            creditsEarned: credits
         });
         
         completedCourses[to][courseId] = true;
         studentCertificates[to].push(tokenId);
+        
+        // Update education history
+        EducationChain storage history = educationHistory[to];
+        history.certificateIds.push(tokenId);
+        history.totalCredits += credits;
+        
+        // Award credits as ERC20 tokens
+        require(eduToken.transfer(to, credits), "Credit transfer failed");
         
         _safeMint(to, tokenId);
         _setTokenURI(tokenId, uri);
@@ -73,8 +113,35 @@ contract CertificateNFT is ERC721URIStorage, Ownable {
             to,
             courseId,
             block.timestamp,
-            grade
+            grade,
+            credits
         );
+        
+        emit CreditsAwarded(to, credits, courseId);
+    }
+
+    function getEducationHistory(address student) 
+        external 
+        view 
+        returns (
+            uint256[] memory certificateIds,
+            uint256 totalCredits,
+            string[] memory specializations
+        ) 
+    {
+        EducationChain memory history = educationHistory[student];
+        return (
+            history.certificateIds,
+            history.totalCredits,
+            history.specializations
+        );
+    }
+
+    function addSpecialization(address student, string memory specialization) 
+        external 
+        onlyAuthorizedUniversity 
+    {
+        educationHistory[student].specializations.push(specialization);
     }
 
     function verifyCertificate(uint256 tokenId) external onlyOwner {
@@ -99,7 +166,8 @@ contract CertificateNFT is ERC721URIStorage, Ownable {
             uint256 completionDate,
             address recipient,
             uint8 grade,
-            bool isVerified
+            bool isVerified,
+            uint256 creditsEarned
         ) 
     {
         require(_exists(tokenId), "Certificate does not exist");
@@ -109,7 +177,8 @@ contract CertificateNFT is ERC721URIStorage, Ownable {
             cert.completionDate,
             cert.recipient,
             cert.grade,
-            cert.isVerified
+            cert.isVerified,
+            cert.creditsEarned
         );
     }
 

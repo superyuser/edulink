@@ -39,3 +39,17 @@ At its current stage, our MVP demonstrates the core functionalities of our visio
   - Build an autonomous agent using [Coinbase AgentKit](https://docs.cdp.coinbase.com/agentkit/docs/welcome) to process natural language commands (e.g., "mint my certificate").
 - **Agent Capabilities:**  
   - Enable the agent to trigger smart contract functions and manage token transfers, abstracting blockchain operations behind a conversational interface.
+
+## User Flow
+
+1. **Course Discovery (LLM Interface)**
+   User Query → Course Recommendations → Course Details
+
+2. **Learning Process**
+   Access Materials → Complete Course → Verification
+
+3. **Certificate Minting**
+   University Verification → NFT Minting → Chain Update
+
+4. **Token Economics**
+   Course Completion → EduToken Rewards → Service Access
