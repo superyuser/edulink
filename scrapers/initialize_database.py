@@ -1,6 +1,6 @@
 import psycopg2
 
-def setup_database():
+def prepare_database():
     """Create database if it doesn't exist"""
     
     try:

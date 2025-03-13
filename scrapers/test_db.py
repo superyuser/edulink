@@ -1,7 +1,7 @@
 import psycopg2
-from initialize_database import setup_database
+from initialize_database import prepare_database
 
-setup_database()
+prepare_database()
 
 def test_db_connection():
     """Test PostgreSQL connection and data insertion"""

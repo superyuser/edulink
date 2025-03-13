@@ -17,7 +17,7 @@ def get_departments_url(department_name):
     # print(f"Generated URL: {url}")
     return url
 
-def get_courses(page_url, max_courses = 25):
+def get_courses(page_url, max_courses = 5):
     def scroll_to_bottom():
         last_height = driver.execute_script("return document.body.scrollHeight")
         while True:

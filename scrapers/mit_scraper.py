@@ -6,10 +6,13 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 from mit_helper.courses_given_departments import get_courses, get_course_details, get_departments_url
+from initialize_database import prepare_database
 import psycopg2
 from psycopg2.extras import execute_values
 import time
 import os
+
+
 
 class MITCourseScraper:
     def __init__(self):
@@ -32,7 +35,7 @@ class MITCourseScraper:
             host="localhost"
         )
         self.cur = self.conn.cursor()
-        self.setup_database()
+        prepare_database()
 
     def setup_database(self):
         # Create departments table
@@ -206,15 +209,88 @@ class MITCourseScraper:
         finally:
             self.cleanup()
 
-    def cleanup(self):
-        self.driver.quit()
-        self.cur.close()
-        self.conn.close()
+    def run_single_department(self, dept_name, dept_url):
+        """Process a single department"""
+        print(f"\nProcessing department: {dept_name}")
+        try:
+            # Store department
+            dept_id = self.store_department(dept_name, dept_url)
+            
+            # Get and store courses for this department
+            courses = self.obtain_courses_list(dept_name)
+            print(f"Found {len(courses)} courses")
+            
+            for j, (course_name, course_url) in enumerate(courses, 1):
+                print(f"Processing course {j}/{len(courses)}: {course_name}")
+                try:
+                    course_id = self.store_course(dept_id, course_name, course_url)
+                    # Add delay between course detail requests
+                    time.sleep(2)
+                    details = self.obtain_course_details(course_url)
+                    self.store_course_details(course_id, details)
+                    self.conn.commit()  # Commit after each course
+                except Exception as e:
+                    self.conn.rollback()
+                    print(f"Error processing course {course_name}: {e}")
+                    continue
+            
+            print(f"Completed department: {dept_name}")
+            return True
+        except Exception as e:
+            self.conn.rollback()
+            print(f"Error processing department {dept_name}: {e}")
+            return False
+
+    def run_once(self):
+        """Main scraper function with department-by-department processing"""
+        try:
+            # Get all departments first
+            departments = self.obtain_departments()
+            total_depts = len(departments)
+            print(f"\nFound {total_depts} departments to process")
+            
+            # Allow user to select departments
+            print("\nAvailable departments:")
+            for i, (name, _) in enumerate(departments, 1):
+                print(f"{i}. {name}")
+            
+            while True:
+                try:
+                    choice = input("\nEnter department number to process (0 for all, -1 to exit): ")
+                    if choice == '-1':
+                        return
+                    
+                    choice = int(choice)
+                    if choice == 0:
+                        # Process all departments
+                        for dept_name, dept_url in departments:
+                            self.run_single_department(dept_name, dept_url)
+                            time.sleep(5)  # Delay between departments
+                        break
+                    elif 1 <= choice <= len(departments):
+                        # Process single department
+                        dept_name, dept_url = departments[choice - 1]
+                        self.run_single_department(dept_name, dept_url)
+                        break
+                    else:
+                        print("Invalid department number")
+                except ValueError:
+                    print("Please enter a valid number")
+                
+        except Exception as e:
+            print(f"Fatal error: {e}")
+        finally:
+            self.cleanup()
+
+        def cleanup(self):
+            self.driver.quit()
+            self.cur.close()
+            self.conn.close()
 
 if __name__ == "__main__":
     scraper = MITCourseScraper()
     try:
-        scraper.run()
+        scraper.run_once()
     except Exception as e:
         print(f"Error: {e}")
         scraper.cleanup()
