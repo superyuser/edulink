@@ -1,0 +1,27 @@
+{
+  "name": "education-chain",
+  "version": "1.0.0",
+  "description": "Blockchain-based education certificate system",
+  "main": "index.js",
+  "scripts": {
+    "test": "hardhat test",
+    "compile": "hardhat compile",
+    "deploy": "hardhat run scripts/deploy.js"
+  },
+  "keywords": [
+    "blockchain",
+    "education",
+    "nft",
+    "certificates"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "@openzeppelin/contracts": "^5.2.0",
+    "@types/node": "^20.0.0",
+    "ethers": "^6.9.0",
+    "hardhat": "^2.19.0",
+    "typescript": "^5.0.0"
+  }
+}
