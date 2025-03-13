@@ -53,3 +53,142 @@ At its current stage, our MVP demonstrates the core functionalities of our visio
 
 4. **Token Economics**
    Course Completion → EduToken Rewards → Service Access
+
+## Project Setup TODO List
+
+### 1. Smart Contract Setup
+- [ ] Install dependencies:
+  ```bash
+  npm install @openzeppelin/contracts hardhat
+  ```
+- [ ] Create and deploy contracts:
+  - [ ] Deploy `CourseCatalog.sol`
+  - [ ] Deploy `EduToken.sol` (ERC20 for credits)
+  - [ ] Deploy `CertificateNFT.sol`
+  - [ ] Link contracts together
+
+### 2. Database Setup
+- [ ] Install PostgreSQL
+- [ ] Create database:
+  ```bash
+  createdb edulink
+  ```
+- [ ] Set up Python environment:
+  ```bash
+  python -m venv venv
+  source venv/bin/activate  # or `venv\Scripts\activate` on Windows
+  pip install -r requirements.txt
+  ```
+- [ ] Run database migrations:
+  ```bash
+  alembic init alembic
+  alembic revision --autogenerate -m "Initial migration"
+  alembic upgrade head
+  ```
+
+### 3. Backend Implementation
+- [ ] Complete API endpoints in `main.py`:
+  - [ ] Course search
+  - [ ] Course enrollment
+  - [ ] Progress tracking
+  - [ ] Certificate minting
+- [ ] Implement LLM interface:
+  - [ ] Set up course matching
+  - [ ] Query processing
+  - [ ] Course recommendations
+- [ ] Create course scraping scripts:
+  - [ ] University course scraper
+  - [ ] Course material collector
+  - [ ] IPFS integration
+
+### 4. Frontend Development
+- [ ] Set up v0:
+  - [ ] Course discovery interface
+  - [ ] Learning dashboard
+  - [ ] Certificate viewer
+  - [ ] Educational history chain
+- [ ] Implement Web3 integration:
+  - [ ] MetaMask connection
+  - [ ] Smart contract interaction
+  - [ ] Transaction handling
+
+### 5. Testing
+- [ ] Smart Contracts:
+  ```bash
+  npx hardhat test
+  ```
+- [ ] Backend:
+  ```bash
+  pytest backend/tests
+  ```
+- [ ] Integration tests:
+  - [ ] Course completion flow
+  - [ ] Certificate minting
+  - [ ] Credit distribution
+
+### 6. Deployment
+- [ ] Smart Contracts:
+  - [ ] Deploy to Goerli testnet
+  - [ ] Verify contracts on Etherscan
+- [ ] Backend:
+  - [ ] Set up production database
+  - [ ] Deploy FastAPI server
+- [ ] Frontend:
+  - [ ] Deploy v0 interface
+
+## Project Structure
+```
+edulink/
+├── contracts/               # Ethereum Smart Contracts
+│   ├── CertificateNFT.sol  # NFT certificates
+│   ├── CourseCatalog.sol   # Course management
+│   └── EduToken.sol        # Educational credits
+├── backend/                # Python Backend
+│   ├── models.py          # Database models
+│   ├── database.py        # Database connection
+│   ├── main.py           # FastAPI endpoints
+│   └── llm_interface.py   # Course matching
+└── frontend/              # v0 Interface
+```
+
+## Environment Setup
+
+1. Create `.env` file:
+```env
+DATABASE_URL=postgresql://user:password@localhost/edulink
+OPENAI_API_KEY=your_key_here  # For LLM interface
+```
+
+2. Install dependencies:
+```bash
+# Backend
+pip install -r requirements.txt
+
+# Smart Contracts
+npm install
+```
+
+## Development Workflow
+
+1. Start local blockchain:
+```bash
+npx hardhat node
+```
+
+2. Run backend:
+```bash
+uvicorn backend.main:app --reload
+```
+
+3. Run frontend:
+```bash
+# v0 commands
+```
+
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a new Pull Request
