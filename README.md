@@ -67,7 +67,7 @@ At its current stage, our MVP demonstrates the core functionalities of our visio
   - [ ] Deploy `CertificateNFT.sol`
   - [ ] Link contracts together
 
-### 2. Database Setup
+### 2. Database and Data Collection Setup
 - [ ] Install PostgreSQL
 - [ ] Create database:
   ```bash
@@ -84,6 +84,31 @@ At its current stage, our MVP demonstrates the core functionalities of our visio
   alembic init alembic
   alembic revision --autogenerate -m "Initial migration"
   alembic upgrade head
+  ```
+- [ ] Set up web scraping infrastructure:
+  - [ ] Install additional dependencies:
+    ```bash
+    pip install selenium beautifulsoup4 ipfshttpclient
+    ```
+  - [ ] Download appropriate webdriver (e.g., ChromeDriver)
+  - [ ] Configure IPFS node for material storage
+
+- [ ] Run scrapers for initial data collection:
+  ```bash
+  # 1. Scrape university data
+  python scripts/scrape_universities.py
+  
+  # 2. Scrape course catalogs
+  python scripts/scrape_courses.py
+  
+  # 3. Collect course materials
+  python scripts/collect_materials.py
+  
+  # 4. Process and store in IPFS
+  python scripts/store_ipfs.py
+  
+  # 5. Update database with IPFS hashes
+  python scripts/update_hashes.py
   ```
 
 ### 3. Backend Implementation
@@ -148,7 +173,97 @@ edulink/
 │   ├── database.py        # Database connection
 │   ├── main.py           # FastAPI endpoints
 │   └── llm_interface.py   # Course matching
+├── scripts/               # Data Collection Scripts
+│   ├── scrape_universities.py  # University data scraper
+│   ├── scrape_courses.py      # Course catalog scraper
+│   ├── collect_materials.py   # Course material collector
+│   ├── store_ipfs.py         # IPFS storage handler
+│   └── update_hashes.py      # Database updater
+├── scrapers/              # Scraping Components
+│   ├── mit_scraper.py    # MIT OpenCourseWare scraper
+│   ├── coursera_scraper.py  # Coursera course scraper
+│   └── utils/
+│       ├── selenium_utils.py  # Selenium helpers
+│       └── ipfs_utils.py     # IPFS helpers
 └── frontend/              # v0 Interface
+```
+
+## Web Scraping Pipeline
+
+### 1. University Data Collection
+```python
+# scripts/scrape_universities.py
+from scrapers.utils.selenium_utils import setup_driver
+from models import University
+
+async def scrape_universities():
+    # Scrape university information
+    # Store in database
+```
+
+### 2. Course Catalog Scraping
+```python
+# scripts/scrape_courses.py
+from scrapers.mit_scraper import MITScraper
+from scrapers.coursera_scraper import CourseraScraper
+
+async def scrape_courses():
+    # Collect course information
+    # Extract prerequisites
+    # Store in database
+```
+
+### 3. Course Material Collection
+```python
+# scripts/collect_materials.py
+from scrapers.utils.selenium_utils import download_materials
+from scrapers.utils.ipfs_utils import prepare_for_ipfs
+
+async def collect_materials():
+    # Download course materials
+    # Process for IPFS storage
+```
+
+### 4. IPFS Storage
+```python
+# scripts/store_ipfs.py
+import ipfshttpclient
+
+async def store_in_ipfs():
+    # Connect to IPFS
+    # Store materials
+    # Get IPFS hashes
+```
+
+### 5. Database Updates
+```python
+# scripts/update_hashes.py
+from models import Course
+
+async def update_course_hashes():
+    # Update courses with IPFS hashes
+    # Link materials to courses
+```
+
+## Scraping Configuration
+
+1. Create `scraping_config.yaml`:
+```yaml
+universities:
+  mit:
+    base_url: "https://ocw.mit.edu"
+    catalog_path: "/courses"
+  coursera:
+    base_url: "https://www.coursera.org"
+    catalog_path: "/browse"
+
+materials:
+  download_path: "./temp_materials"
+  ipfs_node: "/ip4/127.0.0.1/tcp/5001"
+  
+rate_limits:
+  requests_per_second: 2
+  pause_between_pages: 3
 ```
 
 ## Environment Setup
