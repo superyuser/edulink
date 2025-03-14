@@ -47,10 +47,9 @@ async function main() {
     // 5. Set up contract relationships
     console.log("\nSetting up contract relationships...");
 
-    // Add CertificateNFT as a university in CourseCatalog
+    // Get CertificateNFT address for later use
     const certNFTAddress = await certificateNFT.getAddress();
-    await courseCatalog.addUniversity("EduLink Certificates");
-    console.log("Added CertificateNFT university to CourseCatalog");
+    console.log("CertificateNFT address retrieved for setup");
 
     // Authorize AgentManager in CertificateNFT
     const agentManagerAddress = await agentManager.getAddress();
@@ -82,11 +81,13 @@ async function main() {
     // Calculate university ID the same way contract does
     const universityId = hre.ethers.keccak256(hre.ethers.toUtf8Bytes(universityName));
     
+    let isVerified = false;
     try {
         // Check if university already exists
         const existingUniv = await courseCatalog.universities(universityId);
         if (existingUniv.isVerified) {
             console.log('University already exists, skipping addition');
+            isVerified = true;
         } else {
             // Add university with explicit gas settings for Sepolia
             const addUnivTx = await courseCatalog.addUniversity(universityName, {
@@ -99,18 +100,18 @@ async function main() {
                 throw new Error('Transaction failed');
             }
             console.log('Transaction mined successfully');
-        }
-        
-        // Verify university was added correctly (with retries)
-        let university;
-        for (let attempt = 3; attempt > 0; attempt--) {
-            university = await courseCatalog.universities(universityId);
-            if (university.isVerified) {
-                console.log('University verified successfully');
-                break;
+            
+            // Verify university was added correctly (with retries)
+            for (let attempt = 3; attempt > 0; attempt--) {
+                const university = await courseCatalog.universities(universityId);
+                if (university.isVerified) {
+                    console.log('University verified successfully');
+                    isVerified = true;
+                    break;
+                }
+                console.log(`Waiting for university verification... (${attempt} attempts left)`);
+                await new Promise(resolve => setTimeout(resolve, 5000));
             }
-            console.log(`Waiting for university verification... (${attempt} attempts left)`);
-            await new Promise(resolve => setTimeout(resolve, 5000));
         }
     } catch (error) {
         console.error('Failed to add university:', error.message);
@@ -127,7 +128,7 @@ async function main() {
         throw error;
     }
     
-    if (!university.isVerified) {
+    if (!isVerified) {
         throw new Error(`Failed to verify university ${universityName} after multiple attempts`);
     }
     console.log(`Successfully added university with ID ${universityId}`);
