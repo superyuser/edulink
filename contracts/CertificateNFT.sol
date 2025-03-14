@@ -87,6 +87,9 @@ contract CertificateNFT is ERC721URIStorage, Ownable {
         // Verify course exists in catalog
         (,,,,,bool isActive) = courseCatalog.getCourse(courseId);
         require(isActive, "Course not found in catalog");
+
+        // Check if student has already completed this course
+        require(!completedCourses[to][courseId], "Course already completed");
         
         uint256 tokenId = _nextTokenId++;
         
@@ -99,6 +102,7 @@ contract CertificateNFT is ERC721URIStorage, Ownable {
             creditsEarned: credits
         });
         
+        // Mark course as completed BEFORE other operations
         completedCourses[to][courseId] = true;
         studentCertificates[to].push(tokenId);
         
