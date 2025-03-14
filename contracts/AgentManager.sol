@@ -15,7 +15,9 @@ contract AgentManager is Ownable {
     event AgentRevoked(address indexed agent);
     event CertificateRequested(
         address indexed recipient,
-        string courseName,
+        bytes32 indexed courseId,
+        uint8 grade,
+        uint256 credits,
         string metadataURI
     );
 
@@ -45,11 +47,29 @@ contract AgentManager is Ownable {
     // Certificate management functions
     function requestCertificate(
         address recipient,
-        string memory courseName,
+        bytes32 courseId,
+        uint8 grade,
+        uint256 credits,
         string memory metadataURI
     ) external onlyAuthorizedAgent {
-        emit CertificateRequested(recipient, courseName, metadataURI);
-        certificateContract.safeMint(recipient, courseName, metadataURI);
+        // Get list of completed courses
+        uint256[] memory certificates = certificateContract.getStudentCertificates(recipient);
+        bytes32[] memory completedCourses = new bytes32[](certificates.length);
+        
+        // Build array of completed course IDs
+        for (uint i = 0; i < certificates.length; i++) {
+            (bytes32 completedCourseId,,,,,) = certificateContract.getCertificate(certificates[i]);
+            completedCourses[i] = completedCourseId;
+        }
+        
+        // Validate prerequisites
+        require(
+            certificateContract.courseCatalog().validatePrerequisites(courseId, completedCourses),
+            "Prerequisites not met"
+        );
+        
+        emit CertificateRequested(recipient, courseId, grade, credits, metadataURI);
+        certificateContract.safeMint(recipient, courseId, grade, credits, metadataURI);
     }
 
     function verifyCertificate(uint256 tokenId) external onlyAuthorizedAgent {
@@ -58,6 +78,6 @@ contract AgentManager is Ownable {
 
     // View functions
     function isAuthorizedAgent(address agent) public view returns (bool) {
-        return authorizedAgents[agent];
+        return authorizedAgents[agent] || agent == owner();
     }
 }

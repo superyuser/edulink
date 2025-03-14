@@ -54,6 +54,11 @@ contract CertificateNFT is ERC721URIStorage, Ownable {
 
     event UniversityAuthorized(address indexed university, bool status);
     
+    event CertificateVerified(
+        uint256 indexed tokenId,
+        address indexed verifier
+    );
+    
     constructor(
         address _courseCatalog,
         address _eduToken
@@ -102,8 +107,9 @@ contract CertificateNFT is ERC721URIStorage, Ownable {
         history.certificateIds.push(tokenId);
         history.totalCredits += credits;
         
-        // Award credits as ERC20 tokens
-        require(eduToken.transfer(to, credits), "Credit transfer failed");
+        // Award credits as ERC20 tokens (convert to wei)
+        uint256 tokenAmount = credits * 10**18;
+        require(eduToken.transfer(to, tokenAmount), "Credit transfer failed");
         
         _safeMint(to, tokenId);
         _setTokenURI(tokenId, uri);
@@ -144,8 +150,8 @@ contract CertificateNFT is ERC721URIStorage, Ownable {
         educationHistory[student].specializations.push(specialization);
     }
 
-    function verifyCertificate(uint256 tokenId) external onlyOwner {
-        require(_exists(tokenId), "Certificate does not exist");
+    function verifyCertificate(uint256 tokenId) external onlyAuthorizedUniversity {
+        require(_ownerOf(tokenId) != address(0), "Certificate does not exist");
         certificates[tokenId].isVerified = true;
         emit CertificateVerified(tokenId, msg.sender);
     }
@@ -170,7 +176,7 @@ contract CertificateNFT is ERC721URIStorage, Ownable {
             uint256 creditsEarned
         ) 
     {
-        require(_exists(tokenId), "Certificate does not exist");
+        require(_ownerOf(tokenId) != address(0), "Certificate does not exist");
         Certificate memory cert = certificates[tokenId];
         return (
             cert.courseId,
@@ -207,10 +213,28 @@ contract CertificateNFT is ERC721URIStorage, Ownable {
     }
 
     // Override required functions
+    function _increaseBalance(address account, uint128 value)
+        internal
+        virtual
+        override
+    {
+        super._increaseBalance(account, value);
+    }
+
+    function _update(address to, uint256 tokenId, address auth)
+        internal
+        virtual
+        override
+        returns (address)
+    {
+        return super._update(to, tokenId, auth);
+    }
+
     function tokenURI(uint256 tokenId)
         public
         view
-        override(ERC721URIStorage)
+        virtual
+        override
         returns (string memory)
     {
         return super.tokenURI(tokenId);
@@ -219,16 +243,10 @@ contract CertificateNFT is ERC721URIStorage, Ownable {
     function supportsInterface(bytes4 interfaceId)
         public
         view
-        override(ERC721URIStorage)
+        virtual
+        override
         returns (bool)
     {
         return super.supportsInterface(interfaceId);
-    }
-
-    function _burn(uint256 tokenId) 
-        internal
-        override(ERC721URIStorage)
-    {
-        super._burn(tokenId);
     }
 }
