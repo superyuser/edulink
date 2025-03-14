@@ -9,7 +9,7 @@ JSON_FILE = r"C:\Users\Bubble\Desktop\001 Blockchain\edulink\scrapers\Stanford\d
 DB_PARAMS = {
     'dbname': 'edulink',
     'user': 'postgres',
-    'password': 'ENTER PASSWORD HERE',
+    'password': 'rockfish0920',
     'host': 'localhost',
     'port': '5432'
 }
