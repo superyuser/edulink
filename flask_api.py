@@ -3,12 +3,17 @@ from flask_cors import CORS
 from backend.llm_interface import CourseRecommender
 import json
 import os
+import uuid  # For generating user IDs
 
 app = Flask(__name__)
 CORS(app)
 
 # Initialize course recommender
 recommender = CourseRecommender()
+
+# In-memory user store (for demonstration purposes)
+# In a production app, this would be a database
+users = {}
 
 # Create templates directory if it doesn't exist
 os.makedirs('templates', exist_ok=True)
@@ -108,7 +113,7 @@ if not os.path.exists('templates/index.html'):
 
 # Create results.html template
 if not os.path.exists('templates/results.html'):
-    with open('templates/results.html', 'w') as f:
+    with open('templates/results.html', 'w', encoding='utf-8') as f:
         f.write('''<!DOCTYPE html>
 <html>
 <head>
@@ -268,11 +273,77 @@ def results():
 # Keep API endpoint for programmatic access
 @app.route('/api/courses/recommendations', methods=['POST'])
 def get_recommendations():
-    data = request.json
-    query = data.get('query')
-    
-    recommendations = recommender.get_recommendations(query)
-    return jsonify(recommendations)
+    try:
+        # Check if the request has JSON content
+        if request.is_json:
+            data = request.json
+            query = data.get('query', '')
+        else:
+            # Handle form data if not JSON
+            query = request.form.get('query', '')
+        
+        # Validate the query
+        if not query:
+            return jsonify({"error": "No query provided"}), 400
+        
+        # Get recommendations
+        recommendations = recommender.get_recommendations(query)
+        return jsonify(recommendations)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# Add the missing endpoints required by the frontend JavaScript
+
+@app.route('/api/user', methods=['POST'])
+def manage_user():
+    """Create or retrieve a user based on username"""
+    try:
+        if not request.is_json:
+            return jsonify({"error": "Request must be JSON"}), 400
+            
+        data = request.json
+        username = data.get('username', '').strip()
+        
+        if not username:
+            return jsonify({"error": "Username is required"}), 400
+            
+        # Check if user exists
+        for user_id, user_data in users.items():
+            if user_data.get('username') == username:
+                return jsonify({"id": user_id, "username": username})
+                
+        # Create new user
+        user_id = str(uuid.uuid4())
+        users[user_id] = {
+            "username": username,
+            "interests": []
+        }
+        
+        return jsonify({"id": user_id, "username": username})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/courses/search', methods=['POST'])
+def search_courses():
+    """Search for courses based on query and user interests"""
+    try:
+        if not request.is_json:
+            return jsonify({"error": "Request must be JSON"}), 400
+            
+        data = request.json
+        query = data.get('query', '').strip()
+        interests = data.get('interests', [])
+        
+        if not query:
+            return jsonify({"error": "Search query is required"}), 400
+            
+        # Use the recommender to get course recommendations
+        result = recommender.get_recommendations(query)
+        
+        # Return the results
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     print("Starting Flask web server on http://localhost:5000")

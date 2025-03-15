@@ -8,15 +8,24 @@ import torch
 import numpy as np
 import torch.nn.functional as F
 from transformers import AutoTokenizer, AutoModel
+from urllib.parse import urlparse
 
-# Database connection parameters (same as in your schema script)
-DB_PARAMS = {
-    'dbname': 'edulink',
-    'user': 'postgres',
-    'password': 'rockfish0920',
-    'host': 'localhost',
-    'port': '5432'
-}
+# Parse DATABASE_URL if it exists, otherwise fall back to individual params
+if os.environ.get('DATABASE_URL'):
+    url = urlparse(os.environ['DATABASE_URL'])
+    DB_PARAMS = {
+        'dbname': url.path[1:],
+        'user': url.username,
+        'password': url.password,
+        'host': url.hostname,
+        'port': url.port or '5432'
+    }
+else:
+    DB_PARAMS = {
+        'dbname': os.environ.get('DB_NAME', 'edulink'),
+        'user': os.environ.get('DB_USER', 'postgres'),
+        # ... etc
+    }
 
 # Use the same embedding model as used in storeCourses
 EMBEDDING_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
