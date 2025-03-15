@@ -1,17 +1,24 @@
 import json
 import os
 import traceback
+from typing import List, Dict
+import psycopg2
+from psycopg2.extras import DictCursor
 import torch
 import numpy as np
+import torch.nn.functional as F
 from transformers import AutoTokenizer, AutoModel
-from typing import List, Dict, Any
-from psycopg2.errors import DatabaseError
-from db_config import get_db_cursor
-from langchain_core.prompts import PromptTemplate
-from langchain.chains import LLMChain
-from langchain_community.llms import HuggingFacePipeline
 
-# Initialize the embedding model for user query embeddings
+# Database connection parameters (same as in your schema script)
+DB_PARAMS = {
+    'dbname': 'edulink',
+    'user': 'postgres',
+    'password': 'rockfish0920',
+    'host': 'localhost',
+    'port': '5432'
+}
+
+# Use the same embedding model as used in storeCourses
 EMBEDDING_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 embedding_tokenizer = AutoTokenizer.from_pretrained(EMBEDDING_MODEL_NAME)
 embedding_model = AutoModel.from_pretrained(EMBEDDING_MODEL_NAME)
@@ -27,173 +34,157 @@ def compute_embedding(text: str) -> list:
     embedding = outputs.last_hidden_state.mean(dim=1).squeeze().tolist()
     return embedding
 
+def cosine_similarity(vec1: List[float], vec2: List[float]) -> float:
+    """Compute cosine similarity between two vectors."""
+    v1 = np.array(vec1)
+    v2 = np.array(vec2)
+    norm1 = np.linalg.norm(v1)
+    norm2 = np.linalg.norm(v2)
+    if norm1 == 0 or norm2 == 0:
+        return 0.0
+    return float(np.dot(v1, v2) / (norm1 * norm2))
+
 class CourseRecommender:
     """Course recommendation system using vector similarity search and PostgreSQL."""
     
     def __init__(self):
-        # Initialize the department identification chain.
-        # (For simplicity, we use a heuristic in identify_departments below.)
-        self.dept_chain = LLMChain(
-            llm=HuggingFacePipeline(pipeline=None),  # Not used in our simple heuristic below.
-            prompt=PromptTemplate(
-                template="""You are a Stanford course catalog expert. Given a query about courses,
-identify the most relevant Stanford departments from the list below. Return ONLY the department codes
-as a JSON array, sorted by relevance.
-
-Available Departments:
-{departments}
-
-Query: {query}
-
-Return format example: ["MATH", "CS", "STATS"]
-Response:""",
-                input_variables=["query", "departments"]
-            )
-        )
+        # (No LLM chain is used here; we use semantic similarity via our embedding model.)
         print("CourseRecommender initialized.")
     
-    async def get_all_departments(self) -> List[Dict[str, Any]]:
+    def get_all_departments(self) -> List[Dict]:
         """Fetch all departments from the database."""
         try:
-            with get_db_cursor() as cur:
-                query = """
-                SELECT 
-                    code,
-                    name
-                FROM departments
-                ORDER BY code
-                """
-                cur.execute(query)
-                departments = cur.fetchall()
-                columns = [desc[0] for desc in cur.description]
-                return [dict(zip(columns, row)) for row in departments]
-        except DatabaseError as e:
-            print(f"Database error fetching departments: {e}")
+            with psycopg2.connect(**DB_PARAMS) as conn:
+                with conn.cursor(cursor_factory=DictCursor) as cur:
+                    cur.execute("SELECT code, name FROM departments")
+                    rows = cur.fetchall()
+                    return [dict(row) for row in rows]
+        except Exception as e:
+            print(f"Error fetching departments: {e}")
             return []
     
-    async def identify_departments(self, query: str) -> List[str]:
+    def identify_departments(self, query: str) -> List[str]:
         """
-        Identify relevant departments based on the user query.
-        
-        For demonstration purposes, we use a simple heuristic:
-          - If the query mentions 'computer science' or 'programming', return a preset list.
-          - Otherwise, attempt to use the LLM chain.
+        Identify relevant departments by comparing the query embedding to each department's text.
+        Returns a list of department codes for the top 3 matches.
         """
-        query_lower = query.lower()
-        if "computer science" in query_lower or "programming" in query_lower:
-            # Return a preset list for computer science and related areas.
-            return ["CS", "DATASCI", "CME"]
-        else:
-            # Fallback: use the LLM chain (if properly configured)
-            departments = await self.get_all_departments()
-            dept_info = "\n".join([f"- {d['code']}: {d['name']}" for d in departments])
-            try:
-                result = await self.dept_chain.arun(query=query, departments=dept_info)
-                matched_codes = json.loads(result)
-                return matched_codes
-            except Exception as e:
-                print(f"Error in LLM department identification: {e}")
-                return []
+        try:
+            # Embed the user query
+            query_embedding = compute_embedding(query)
+            
+            departments = self.get_all_departments()
+            dept_scores = []
+            for dept in departments:
+                # Construct a string combining the department name and code
+                dept_text = f"{dept['name']} ({dept['code']})"
+                dept_embedding = compute_embedding(dept_text)
+                score = cosine_similarity(query_embedding, dept_embedding)
+                dept_scores.append((dept['code'], score))
+            
+            # Sort departments by score (highest first) and take top 3
+            dept_scores.sort(key=lambda x: x[1], reverse=True)
+            top_depts = [code for code, _ in dept_scores[:3]]
+            return top_depts
+        except Exception as e:
+            print(f"Department identification error: {e}")
+            return []
     
-    async def get_courses_by_departments(self, dept_codes: List[str]) -> List[Dict[str, Any]]:
+    def get_courses_by_departments(self, dept_codes: List[str]) -> List[Dict]:
         """
         Retrieve courses from the database that belong to the specified department codes.
-        Each returned course includes its stored JSON embedding.
+        This query joins the courses table with departments to return department info.
         """
         try:
-            with get_db_cursor() as cur:
-                query_sql = """
-                SELECT 
-                    c.id,
-                    c.course_code,
-                    c.title,
-                    c.description,
-                    c.instructors,
-                    c.credits,
-                    c.ipfs_materials_hash,
-                    c.blockchain_certificate_id,
-                    c.embedding,
-                    d.name as department_name,
-                    d.code as department_code
-                FROM courses c
-                JOIN departments d ON c.department_id = d.id
-                WHERE d.code = ANY(%s)
-                """
-                cur.execute(query_sql, (dept_codes,))
-                courses = cur.fetchall()
-                columns = [desc[0] for desc in cur.description]
-                return [dict(zip(columns, row)) for row in courses]
-        except DatabaseError as e:
-            print(f"Database error fetching courses: {e}")
+            with psycopg2.connect(**DB_PARAMS) as conn:
+                with conn.cursor(cursor_factory=DictCursor) as cur:
+                    query_sql = """
+                    SELECT 
+                        c.id,
+                        c.course_code,
+                        c.title,
+                        c.description,
+                        c.instructors,
+                        c.credits,
+                        c.ipfs_materials_hash,
+                        c.blockchain_certificate_id,
+                        c.embedding,
+                        d.code as department_code,
+                        d.name as department_name
+                    FROM courses c
+                    JOIN departments d ON c.department_id = d.id
+                    WHERE d.code = ANY(%s)
+                    """
+                    cur.execute(query_sql, (dept_codes,))
+                    rows = cur.fetchall()
+                    return [dict(row) for row in rows]
+        except Exception as e:
+            print(f"Error fetching courses: {e}")
             return []
     
-    async def get_recommendations(self, query: str) -> Dict[str, Any]:
+    def get_recommendations(self, query: str) -> Dict:
         """
-        Get course recommendations by:
-          1. Identifying relevant departments,
-          2. Fetching all courses in the top 3 departments,
-          3. Embedding the user query,
-          4. Computing cosine similarity between the query embedding and each course's embedding,
-          5. Returning the top 5 courses by similarity score.
+        Generate course recommendations by:
+         1. Identifying the top 3 matching departments.
+         2. Fetching all courses from those departments.
+         3. Embedding the user query.
+         4. Computing cosine similarity between the query embedding and each course's stored embedding.
+         5. Returning the top 5 courses (sorted by similarity score).
         """
         try:
-            # Step 1: Identify relevant departments.
-            departments = await self.identify_departments(query)
-            if not departments:
-                return {"error": "No relevant departments found"}
+            # Step 1: Identify departments.
+            top_depts = self.identify_departments(query)
+            if not top_depts:
+                return {"error": "No matching departments found"}
+            print(f"Selected departments: {top_depts}")
             
-            # Only consider the top 3 matching departments.
-            selected_depts = departments[:3]
-            print(f"Selected departments: {selected_depts}")
-            
-            # Step 2: Retrieve courses from the selected departments.
-            courses = await self.get_courses_by_departments(selected_depts)
+            # Step 2: Retrieve courses in these departments.
+            courses = self.get_courses_by_departments(top_depts)
             if not courses:
                 return {"error": "No courses found in selected departments"}
+            print(f"Total courses found: {len(courses)}")
             
             # Step 3: Embed the user query.
             query_embedding = compute_embedding(query)
             
-            # Step 4: Compute cosine similarity between query embedding and each course's embedding.
-            def cosine_similarity(vec1, vec2):
-                vec1 = np.array(vec1)
-                vec2 = np.array(vec2)
-                norm1 = np.linalg.norm(vec1)
-                norm2 = np.linalg.norm(vec2)
-                if norm1 == 0 or norm2 == 0:
-                    return 0.0
-                return float(np.dot(vec1, vec2) / (norm1 * norm2))
-            
+            # Step 4: For each course, compute similarity between query and stored embedding.
             for course in courses:
+                stored_emb = course.get("embedding")
                 course_embedding = None
-                if course.get('embedding'):
-                    try:
-                        # If embedding is a string, parse it; otherwise, assume it's already a list.
-                        if isinstance(course['embedding'], str):
-                            course_embedding = json.loads(course['embedding'])
-                        else:
-                            course_embedding = course['embedding']
-                    except Exception as e:
-                        print(f"Error parsing embedding for course {course.get('course_code')}: {e}")
-                        course_embedding = None
+                # The stored embedding might be a list or a JSON string.
+                if stored_emb:
+                    if isinstance(stored_emb, str):
+                        try:
+                            course_embedding = json.loads(stored_emb)
+                        except Exception as e:
+                            print(f"Error parsing embedding for course {course.get('course_code')}: {e}")
+                    elif isinstance(stored_emb, list):
+                        course_embedding = stored_emb
+                # Compute cosine similarity (or 0 if embedding missing)
                 if course_embedding:
-                    course['similarity'] = cosine_similarity(query_embedding, course_embedding)
+                    course["similarity"] = cosine_similarity(query_embedding, course_embedding)
                 else:
-                    course['similarity'] = 0.0
+                    course["similarity"] = 0.0
             
-            # Step 5: Sort courses by similarity (descending) and take the top 5.
-            courses_sorted = sorted(courses, key=lambda x: x['similarity'], reverse=True)
-            top_courses = courses_sorted[:5]
+            # Step 5: Sort courses by similarity and take the top 5.
+            courses_sorted = sorted(courses, key=lambda x: x["similarity"], reverse=True)
+            top_courses = courses_sorted[:8]
             
             response = {
                 "query": query,
-                "departments": selected_depts,
+                "departments": top_depts,
                 "total_results": len(courses),
                 "courses": top_courses
             }
-            
             return response
         except Exception as e:
-            print(f"Error in get_recommendations: {e}")
+            print(f"Error generating recommendations: {e}")
             traceback.print_exc()
             return {"error": str(e)}
+
+# Example usage (if running this file directly):
+if __name__ == "__main__":
+    recommender = CourseRecommender()
+    test_query = "I want to learn about computer science"
+    recommendations = recommender.get_recommendations(test_query)
+    print("Recommendations:")
+    print(json.dumps(recommendations, indent=2))
