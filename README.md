@@ -68,32 +68,26 @@ At its current stage, our MVP demonstrates the core functionalities of our visio
   - [ ] Link contracts together
 
 ### 2. Database and Data Collection Setup
-- [ ] Install PostgreSQL
-- [ ] Create database:
+- ✅ Install PostgreSQL
+- ✅ Create database:
   ```bash
   createdb edulink
   ```
-- [ ] Set up Python environment:
+- ✅ Set up Python environment:
   ```bash
   python -m venv venv
   source venv/bin/activate  # or `venv\Scripts\activate` on Windows
   pip install -r requirements.txt
   ```
-- [ ] Run database migrations:
+- ✅ Run database migrations:
   ```bash
   alembic init alembic
   alembic revision --autogenerate -m "Initial migration"
   alembic upgrade head
   ```
-- [ ] Set up web scraping infrastructure:
-  - [ ] Install additional dependencies:
-    ```bash
-    pip install selenium beautifulsoup4 ipfshttpclient
-    ```
-  - [ ] Download appropriate webdriver (e.g., ChromeDriver)
-  - [ ] Configure IPFS node for material storage
+- ✅ Set up web scraping infrastructure
 
-- [ ] Run scrapers for initial data collection:
+- ✅ Run scrapers for initial data collection:
   ```bash
   # 1. Scrape university data
   python scripts/scrape_universities.py
@@ -122,8 +116,8 @@ At its current stage, our MVP demonstrates the core functionalities of our visio
   - [ ] Query processing
   - [ ] Course recommendations
 - [ ] Create course scraping scripts:
-  - [ ] University course scraper
-  - [ ] Course material collector
+  - ✅ University course scraper
+  - ✅ Course material collector
   - [ ] IPFS integration
 
 ### 4. Frontend Development
