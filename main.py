@@ -4,20 +4,15 @@ from psycopg2.extras import DictCursor
 from backend.llm_interface import CourseRecommender
 import json
 import datetime
+from db_config import DB_CONFIG, get_db_connection
 
 # Database connection parameters
-DB_PARAMS = {
-    'dbname': os.getenv('DB_NAME', 'edulink'),
-    'user': os.getenv('DB_USER', 'postgres'),
-    'password': os.getenv('DB_PASSWORD', 'rockfish0920'),
-    'host': os.getenv('DB_HOST', 'localhost'),
-    'port': os.getenv('DB_PORT', '5432')
-}
+DB_PARAMS = DB_CONFIG
 
 def setup_database():
     """Create the users table if it doesn't exist."""
     try:
-        with psycopg2.connect(**DB_PARAMS) as conn:
+        with get_db_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
                 CREATE TABLE IF NOT EXISTS users (
@@ -37,7 +32,7 @@ def setup_database():
 def get_user(username: str):
     """Fetch a user by username."""
     try:
-        with psycopg2.connect(**DB_PARAMS) as conn:
+        with get_db_connection() as conn:
             with conn.cursor(cursor_factory=DictCursor) as cur:
                 cur.execute("SELECT * FROM users WHERE username = %s", (username,))
                 row = cur.fetchone()
@@ -49,7 +44,7 @@ def get_user(username: str):
 def create_user(username: str):
     """Create a new user and store it in the database."""
     try:
-        with psycopg2.connect(**DB_PARAMS) as conn:
+        with get_db_connection() as conn:
             with conn.cursor(cursor_factory=DictCursor) as cur:
                 cur.execute("""
                 INSERT INTO users (username)
