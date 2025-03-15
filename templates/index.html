@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EduLink - Course Discovery</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Welcome to EduLink</h1>
+        
+        <div id="name-form" class="form-section">
+            <h2>What's your name?</h2>
+            <div class="input-group">
+                <input type="text" id="name-input" placeholder="Enter your name">
+                <button id="name-submit" class="btn">Continue</button>
+            </div>
+        </div>
+        
+        <div id="course-form" class="form-section" style="display: none;">
+            <h2>Hello <span id="user-name"></span>! What would you like to learn about?</h2>
+            <div class="input-group">
+                <input type="text" id="course-input" placeholder="e.g., Computer Science, Machine Learning, Physics">
+                <button id="course-submit" class="btn">Search</button>
+            </div>
+        </div>
+        
+        <div id="results-section" class="form-section" style="display: none;">
+            <h2>Recommended Courses</h2>
+            <div id="courses-container"></div>
+        </div>
+        
+        <div id="loading" class="loading" style="display: none;">
+            <div class="spinner"></div>
+            <p>Searching for courses...</p>
+        </div>
+    </div>
+    
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
